@@ -6,6 +6,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import java.nio.charset.StandardCharsets;
 import java.security.*;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -74,7 +75,15 @@ public class AesHelpers {
             RsaHelpers rsahelper = new RsaHelpers(databaseName, tableName);
             encryptedAesKey = rsahelper.encryptRawDataWithRsa(this.secretKey.toString(), uid);
 
-            encryptedAesKey = this.iv + encryptedAesKey;
+            // encryptedAesKey = this.iv + encryptedAesKey;
+            byte[] tempEncryptedAesKey = encryptedAesKey.getBytes();
+            // byte[] newEncryptedAesKeyWithIVPrepended = this.iv  tempEncryptedAesKey;
+            byte[] newEncryptedAesKeyWithIVPrependedAsBytes = new byte[tempEncryptedAesKey.length + 16];
+            for(int i = 0; i<16; i++) {
+                newEncryptedAesKeyWithIVPrependedAsBytes[i] = this.iv[i];
+            }
+            System.arraycopy(tempEncryptedAesKey, 0, newEncryptedAesKeyWithIVPrependedAsBytes, 16, 16);
+            encryptedAesKey = new String(newEncryptedAesKeyWithIVPrependedAsBytes, StandardCharsets.UTF_8);
 
             Cipher cipher = Cipher.getInstance(algorithm);
             cipher.init(Cipher.ENCRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH_BIT, this.iv));
@@ -125,7 +134,15 @@ public class AesHelpers {
         try {
             String decryptedAesKey = null;
             
-
+            byte[] encryptedAesKeyBytesWithIvPrepended = encryptedAesKey.getBytes();
+            this.iv = Arrays.copyOfRange(encryptedAesKeyBytesWithIvPrepended, 0, 15);
+            
+            byte[] onlyAesKeyBytes = new byte[encryptedAesKeyBytesWithIvPrepended.length - 16];
+            for(int i = 16; i<encryptedAesKeyBytesWithIvPrepended.length; i++) {
+                onlyAesKeyBytes[i-16] = encryptedAesKeyBytesWithIvPrepended[i];
+            }
+            encryptedAesKey = new String(onlyAesKeyBytes, StandardCharsets.UTF_8);
+            
             RsaHelpers rsahelper = new RsaHelpers(databaseName, tableName);
             decryptedAesKey = rsahelper.decryptRawDataWithRsa(encryptedAesKey, uid);
 
