@@ -60,8 +60,6 @@ public class AesHelpers {
         final int TAG_LENGTH_BIT = 128;
         final String algorithm = "AES/GCM/NoPadding";
         String encryptedData = null;
-        final String databaseName = "main_database";
-        final String tableName = "key_data";
 
         Map<String, String> results = new HashMap<String, String>();
         results.put("AESKey", null);
@@ -142,7 +140,7 @@ public class AesHelpers {
                 onlyAesKeyBytes[i-16] = encryptedAesKeyBytesWithIvPrepended[i];
             }
             encryptedAesKey = new String(onlyAesKeyBytes, StandardCharsets.UTF_8);
-            
+
             RsaHelpers rsahelper = new RsaHelpers(databaseName, tableName);
             decryptedAesKey = rsahelper.decryptRawDataWithRsa(encryptedAesKey, uid);
 
