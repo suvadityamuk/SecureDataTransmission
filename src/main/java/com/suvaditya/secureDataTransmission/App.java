@@ -1,4 +1,4 @@
-package com.suvaditya;
+package com.suvaditya.secureDataTransmission;
 // import java.util.*;
 
 // import java.util.Scanner;

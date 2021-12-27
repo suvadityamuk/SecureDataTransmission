@@ -1,4 +1,4 @@
-package com.suvaditya;
+package com.suvaditya.secureDataTransmission;
 
 import java.sql.*;
 import java.nio.file.*;
