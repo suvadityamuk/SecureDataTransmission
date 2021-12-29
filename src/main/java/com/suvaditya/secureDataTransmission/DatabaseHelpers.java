@@ -20,6 +20,7 @@ public class DatabaseHelpers {
     }
     // Path to DB will look something like "jdbc:sqlite:PATH_TO_DB"
     private void connectToDb() throws SQLException{
+        System.out.println("In connectToDb");
         try {
             if (this.dbPath == null) {
                 Exception e = new Exception("dbPath for this instance is not specified.");
@@ -34,16 +35,17 @@ public class DatabaseHelpers {
         }
         catch (Exception e) {
             if (e instanceof SQLException){
-                System.out.println("Connection to database could not be established. SQLException triggered");
-                System.out.println(e.getMessage());
+                System.err.println("Connection to database could not be established. SQLException triggered");
+                System.err.println(e.getMessage());
             }
             else {
-                System.out.println("Connection to database could not be established. Database Path is incorrect/Not Set");
+                System.err.println("Connection to database could not be established. Database Path is incorrect/Not Set");
             }
             e.printStackTrace();
         }
     }
     private void closeDbConnection() {
+        System.out.println("In closeDbConnection");
         try {
             if(this.conn != null) {
                 this.conn.close();
@@ -54,19 +56,19 @@ public class DatabaseHelpers {
             }
         }
         catch (SQLException e) {
-            System.out.println("Error Code : " + e.getErrorCode());
-            System.out.println("SQL State : " + e.getSQLState());
-            System.out.println(e.getMessage());
+            System.err.println("Error Code : " + e.getErrorCode());
+            System.err.println("SQL State : " + e.getSQLState());
+            System.err.println(e.getMessage());
             e.printStackTrace();
         }
     }
     private void setDatabasePath (String databaseName) {
-    
+        System.out.println("In setDatabasePath");
         //Setting instance dbName to filepath
         if (this.dbPath == null) {
             String currentWorkingDir = FileSystems.getDefault().getPath("").toAbsolutePath().toString();
             System.out.println(currentWorkingDir);
-            String filePath = String.format("jdbc:sqlite:%s", currentWorkingDir) + String.format("/%s", databaseName) + ".db";
+            String filePath = String.format("jdbc:sqlite:%s", currentWorkingDir) + String.format("/%s", databaseName) + ".sqlite";
             this.dbPath = filePath;
         }
         else {
@@ -75,8 +77,8 @@ public class DatabaseHelpers {
         }
     }
 
-    public void createNewDatabase(String databaseName) {
-
+    public void createNewDatabase(String databaseName, String tableName) {
+        System.out.println("In createNewDatabase");
         setDatabasePath(databaseName);
         try {
             connectToDb();
@@ -84,24 +86,25 @@ public class DatabaseHelpers {
                 DatabaseMetaData metadata = this.conn.getMetaData();
                 System.out.println("Driver details: \n" + metadata.getDriverName() + "\n" + metadata.getDriverVersion());
                 System.out.println("Database created successfully.");
+                createTable(databaseName, tableName);
             }
         }
         catch (SQLException e) {
-            System.out.println("Error Code : " + e.getErrorCode());
-            System.out.println("SQL State : " + e.getSQLState());
-            System.out.println(e.getMessage());
+            System.err.println("Error Code : " + e.getErrorCode());
+            System.err.println("SQL State : " + e.getSQLState());
+            System.err.println(e.getMessage());
             e.printStackTrace();
             closeDbConnection();
         }
         catch (Exception e) {
-            System.out.println("Database could not be created.");
+            System.err.println("Database could not be created.");
             e.printStackTrace();
             closeDbConnection();
         }
     }
-
+    
     public void createTable(String databaseName, String tableName) {
-
+        System.out.println("In createTable");
         setDatabasePath(databaseName);
         String sqlCreateStatement = String.format("CREATE TABLE IF NOT EXISTS %s (\n", tableName) +
          "  uid text PRIMARY KEY, \n" + 
@@ -113,17 +116,18 @@ public class DatabaseHelpers {
             if (this.conn != null){
                 Statement statement = conn.createStatement();
                 statement.execute(sqlCreateStatement);
+                System.out.println("Success");
             }
         }
         catch (SQLException e) {
-            System.out.println("Error Code : " + e.getErrorCode());
-            System.out.println("SQL State : " + e.getSQLState());
-            System.out.println(e.getMessage());
+            System.err.println("Error Code : " + e.getErrorCode());
+            System.err.println("SQL State : " + e.getSQLState());
+            System.err.println(e.getMessage());
             e.printStackTrace();
             closeDbConnection();
         }
         catch (Exception e) {
-            System.out.println("Table could not be created.");
+            System.err.println("Table could not be created.");
             e.printStackTrace();
             closeDbConnection();
         }
@@ -131,33 +135,57 @@ public class DatabaseHelpers {
     }
 
     public void insertKeysToDatabase(String databaseName, String tableName, String uid, PublicKey rsaPublicKey, PrivateKey rsaPrivateKey) {
+        System.out.println("In insertKeysToDatabase");
         setDatabasePath(databaseName);
         System.out.println(this.dbPath);
         String sqlInsertDataStatement = String.format("INSERT INTO %s (uid, rsapublicKey, rsaprivateKey) VALUES (?,?,?)", tableName);
+
+        Map<String, byte[]> keysLoaded = readKeysFromDatabase(databaseName, tableName, uid);
+        if(keysLoaded.get("PrivateKey") != null || keysLoaded.get("PublicKey") != null) {
+            updateKeysInDatabase(databaseName, tableName, uid, rsaPublicKey, rsaPrivateKey);
+            return;
+        }
+        System.out.println("\n\nCrossed update \n\n");
+        // if uid has already got keys associated, update the keys instead of inserting
         try{
             connectToDb();
+            System.out.println("\n\nCrossed connect \n\n");
             PreparedStatement statement = this.conn.prepareStatement(sqlInsertDataStatement);
+            connectToDb();
+            byte[] publicKeyBytes = rsaPublicKey.getEncoded();
+            byte[] privateKeyBytes = rsaPrivateKey.getEncoded();
+            String publicKeyStringDerivedFromBytes = publicKeyBytes.toString();
+            String privateKeyStringDerivedFromBytes = privateKeyBytes.toString();
             statement.setString(1, uid);
-            statement.setBytes(2, rsaPublicKey.getEncoded());
-            statement.setBytes(3, rsaPrivateKey.getEncoded());
+            statement.setString(2, publicKeyStringDerivedFromBytes);
+            statement.setString(3, privateKeyStringDerivedFromBytes);
             statement.executeUpdate();
+            System.out.println("\n\nCrossed executeupdate \n\n");
+            System.out.println("Keys saved.");
         }
         catch (SQLException e) {
-            System.out.println("Error Code : " + e.getErrorCode());
-            System.out.println("SQL State : " + e.getSQLState());
-            System.out.println(e.getMessage());
+            System.err.println("Error Code : " + e.getErrorCode());
+            System.err.println("SQL State : " + e.getSQLState());
+            System.err.println(e.getMessage());
+            if (e.getMessage().contains("no such table: key_data")) {
+                System.err.println("Creating table reached");
+                createTable(databaseName, tableName);
+                insertKeysToDatabase(databaseName, tableName, uid, rsaPublicKey, rsaPrivateKey);
+                return;
+            }
             e.printStackTrace();
-            closeDbConnection();
+            // closeDbConnection();
         }
         catch (Exception e) {
-            System.out.println("Keys were not set.");
+            System.err.println("Keys were not set.");
             e.printStackTrace();
-            closeDbConnection();
+            // closeDbConnection();
         }
     }
 
     // WARNING : CAN RETURN NULL VALUES
     public Map<String, byte[]> readKeysFromDatabase(String databaseName, String tableName, String uid) {
+        System.out.println("In readKeysFromDatabase");
         setDatabasePath(databaseName);
         Map<String, byte[]> cryptographicRsaKeys = new HashMap<String, byte[]>();
         cryptographicRsaKeys.put("PrivateKey", null);
@@ -165,14 +193,18 @@ public class DatabaseHelpers {
         try {
             connectToDb();
             String queryFromTableStatement = String.format("SELECT uid, rsapublickey, rsaprivatekey FROM %s WHERE uid=?", tableName);
+            System.out.println(queryFromTableStatement);
             PreparedStatement statement = this.conn.prepareStatement(queryFromTableStatement);
+            connectToDb();
             statement.setString(1, uid);
             ResultSet resultSet = statement.executeQuery();
             while(resultSet.next()) {
-                cryptographicRsaKeys.put("PrivateKey", resultSet.getBinaryStream("rsaprivatekey").readAllBytes());
-                cryptographicRsaKeys.put("PublicKey", resultSet.getBinaryStream("rsapublickey").readAllBytes());
+                cryptographicRsaKeys.put("PrivateKey", resultSet.getBinaryStream("rsaprivatekey").readAllBytes().toString().getBytes());
+                cryptographicRsaKeys.put("PublicKey", resultSet.getBinaryStream("rsapublickey").readAllBytes().toString().getBytes());
             }
             if((cryptographicRsaKeys.get("PrivateKey") != null) && (cryptographicRsaKeys.get("PublicKey") != null)) {
+                System.out.println(cryptographicRsaKeys.get("PrivateKey"));
+                System.out.println(cryptographicRsaKeys.get("PublicKey"));
                 return cryptographicRsaKeys;
             }
             else {
@@ -181,26 +213,31 @@ public class DatabaseHelpers {
             }
         }
         catch (SQLException e) {
-            System.out.println("Error Code : " + e.getErrorCode());
-            System.out.println("SQL State : " + e.getSQLState());
-            System.out.println(e.getMessage());
+            System.err.println("Error Code : " + e.getErrorCode());
+            System.err.println("SQL State : " + e.getSQLState());
+            System.err.println(e.getMessage());
             e.printStackTrace();
-            closeDbConnection();
+            if (conn != null) {
+                // closeDbConnection();
+            }
         }
         catch (Exception e) {
             if (e.getMessage() == "KeysNotSet") {
-                System.out.println("The Keys were either not found or do not exist. Search terminated with no results.");
+                System.err.println("The Keys were either not found or do not exist. Search terminated with no results.");
             }
             else {
-                System.out.println(e.getMessage());
+                System.err.println(e.getMessage());
             }
             e.printStackTrace();
-            closeDbConnection();
+            if (conn != null) {
+                // closeDbConnection();
+            }
         }
         return cryptographicRsaKeys;
     }
 
     public void updateKeysInDatabase(String databaseName, String tableName, String uid, PublicKey rsaPublicKey, PrivateKey rsaPrivateKey) {
+        System.out.println("In updateKeysInDatabase");
         setDatabasePath(databaseName);
         try {
             connectToDb();
@@ -211,6 +248,7 @@ public class DatabaseHelpers {
             else {
                 String updateStatement = String.format("UPDATE %s SET uid=?, rsapublickey=?, rsaprivatekey=?", tableName); 
                 PreparedStatement statement = conn.prepareStatement(updateStatement);
+                connectToDb();
                 statement.setString(1, uid);
                 statement.setBytes(2, rsaPublicKey.getEncoded());
                 statement.setBytes(3, rsaPublicKey.getEncoded());
@@ -218,24 +256,30 @@ public class DatabaseHelpers {
             }
         }
         catch (SQLException e) {
-            System.out.println("Error Code : " + e.getErrorCode());
-            System.out.println("SQL State : " + e.getSQLState());
-            System.out.println(e.getMessage());
+            System.err.println("Error Code : " + e.getErrorCode());
+            System.err.println("SQL State : " + e.getSQLState());
+            System.err.println(e.getMessage());
+            if (conn != null) {
+                closeDbConnection();
+            }
             e.printStackTrace();
         }
         catch (Exception e) {
             if (e.getMessage() == "DataNotFound") {
-                System.out.println("The requested UID record does not exist.");
+                System.err.println("The requested UID record does not exist.");
             }
             else {
-                System.out.println(e.getMessage());
+                System.err.println(e.getMessage());
             }
             e.printStackTrace();
-            closeDbConnection();
+            if (conn != null) {
+                closeDbConnection();
+            }
         }
     }
 
     public void deleteKeysFromDatabase(String databaseName, String tableName, String uid) {
+        System.out.println("In deleteKeysFromDatabase");
         setDatabasePath(databaseName);
         try {
             connectToDb();
@@ -246,29 +290,32 @@ public class DatabaseHelpers {
             else {
                 String deleteStatement = String.format("DELETE FROM %s WHERE uid=?", tableName); 
                 PreparedStatement statement = conn.prepareStatement(deleteStatement);
+                connectToDb();
                 statement.setString(1, uid);
                 statement.executeUpdate();
             }
         }
         catch (SQLException e) {
-            System.out.println("Error Code : " + e.getErrorCode());
-            System.out.println("SQL State : " + e.getSQLState());
-            System.out.println(e.getMessage());
+            System.err.println("Error Code : " + e.getErrorCode());
+            System.err.println("SQL State : " + e.getSQLState());
+            System.err.println(e.getMessage());
             e.printStackTrace();
-            closeDbConnection();
+            if (conn != null) {
+                closeDbConnection();
+            }
         }
         catch (Exception e) {
             if (e.getMessage() == "DataNotFound") {
-                System.out.println("The requested UID record does not exist.");
+                System.err.println("The requested UID record does not exist.");
             }
             else {
-                System.out.println(e.getMessage());
+                System.err.println(e.getMessage());
             }
             e.printStackTrace();
-            closeDbConnection();
+            if (conn != null) {
+                closeDbConnection();
+            }
         }
     }
 
-
-    
 }

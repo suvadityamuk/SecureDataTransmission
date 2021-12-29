@@ -1,16 +1,23 @@
 package com.suvaditya.secureDataTransmission;
 
 import java.security.PublicKey;
+import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.EncodedKeySpec;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.security.*;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
 import javax.crypto.Cipher;
+import javax.crypto.EncryptedPrivateKeyInfo;
+
+import jdk.jfr.internal.Logger;
 
 import java.io.*;
+import java.math.BigInteger;
 
 public class RsaHelpers {
 
@@ -58,6 +65,7 @@ public class RsaHelpers {
     
 
     private void generateNewKeys() {
+        System.out.println("In generateNewKeys");
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
             generator.initialize(2048);
@@ -66,11 +74,11 @@ public class RsaHelpers {
             this.publicKey = pair.getPublic();
         }
         catch (NoSuchAlgorithmException e) {
-            System.out.println("Algorithm could not be found or used.");
+            System.err.println("Algorithm could not be found or used.");
             e.printStackTrace();
         }
         catch (Exception e) {
-            System.out.println("Internal error while creating new keys for RSA");
+            System.err.println("Internal error while creating new keys for RSA");
             e.printStackTrace();
         }
     }
@@ -81,45 +89,82 @@ public class RsaHelpers {
         if yes, then query and load keypairs
         if no, then throw error
          */
+        System.out.println("In loadKeyPairFromDatabase");
         boolean result = false;
         try {
             String currentWorkingDir = FileSystems.getDefault().getPath("").toAbsolutePath().toString();
             System.out.println(currentWorkingDir);
-            String filePath = String.format("jdbc:sqlite:%s", currentWorkingDir) + String.format("/%s", databaseName) + ".db";
+            String filePath = currentWorkingDir + String.format("/%s", databaseName) + ".sqlite";
             File file = new File(filePath);
+            if (!file.exists()) {
+                helper.createNewDatabase(databaseName, tableName);
+            }
             if (file.exists()) {
+                // System.out.println("Reached here 1");
+
                 Map<String, byte[]> keyPair = helper.readKeysFromDatabase(databaseName, tableName, uid);
 
+                // System.out.println("Reached here 2");
                 byte[] privateKeyBytes = keyPair.get("PrivateKey");
                 byte[] publicKeyBytes = keyPair.get("PublicKey");
+                if (publicKeyBytes == null || privateKeyBytes == null) {
+                    System.out.println("Private and public key bytes are null");
+                } 
+                // System.out.println("Reached here 3");
 
                 KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 
+                // System.out.println("Reached here 4");
+                System.out.println("Public key bytes = " + publicKeyBytes);
+                System.out.println("Private key bytes = " + privateKeyBytes);
+
                 EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
-                EncodedKeySpec privateKeySpec = new X509EncodedKeySpec(privateKeyBytes);
+
+                // BigInteger one = new BigInteger(privateKeyBytes);
+                // String temp = one.toString(8);
+                // System.out.println(Charset.availableCharsets());
+                // byte[] temp1 = temp.getBytes();
+
+                // EncryptedPrivateKeyInfo privateKeyInfo = new EncryptedPrivateKeyInfo(temp1);
+
+                // System.out.println("PrivateKeyInfo = " + privateKeyInfo);
+                // System.out.println("PrivateKeyInfo AlgName= " + privateKeyInfo.getAlgName());
+                // System.out.println("PrivateKeyInfo AlgParams= " + privateKeyInfo.getAlgParameters());
+
+                PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
+                
+                
+                // System.out.println("Reached here 5");
 
                 this.publicKey = keyFactory.generatePublic(publicKeySpec);
-                this.privateKey = keyFactory.generatePrivate(privateKeySpec);
+                this.privateKey = (RSAPrivateKey) keyFactory.generatePrivate(privateKeySpec);
+                
                 result = true;
             }
         }
         catch (NoSuchAlgorithmException e) {
-            System.out.println("Algorithm could not be found or used.");
+            System.err.println("Algorithm could not be found or used.");
             e.printStackTrace();
         }
         catch (Exception e) {
-            System.out.println("Internal error while loading keys from RSA");
+            System.err.println("Internal error while loading keys from RSA");
             e.printStackTrace();
         }
         return result;
     }
 
     private boolean saveNewKeypairToDatabase(String databaseName, String tableName, String uid) {
+        System.out.println("In saveNewKeypairToDatabase");
         boolean result = false;
         if (this.privateKey == null || this.publicKey == null) {
             generateNewKeys();
         }
-        this.helper.insertKeysToDatabase(databaseName, tableName, uid, this.publicKey, this.privateKey);
+        if (this.privateKey != null && this.publicKey != null) {
+            System.out.println("\n\n\n\nAbout to save and insert keys to db\n\n\n\n");
+            System.out.println("\nPublic key = \n"+this.publicKey);
+            System.out.println("\nPrivate key = \n"+this.privateKey);
+            this.helper.insertKeysToDatabase(databaseName, tableName, uid, this.publicKey, this.privateKey);
+        } 
         if (this.privateKey != null && this.publicKey != null) {
             result = true;
         }
@@ -137,9 +182,10 @@ public class RsaHelpers {
         dec: b64 string -> cipher-bytes -> bytes -> string
 
          */
+        System.out.println("In encryptRawDataWithRsa");
         String encryptedCipherText = null;
         try {
-
+            // If loading keys for first time
             if (this.privateKey == null || this.privateKey == null) {
                 loadKeyPairFromDatabase(this.databaseName, this.tableName, uid);
                 if (this.privateKey == null || this.publicKey == null) {
@@ -148,7 +194,7 @@ public class RsaHelpers {
                     System.out.println("No keys found against this UID. New ones generated and saved into database.");
                 }
             }
-
+            
             Cipher encryptor = Cipher.getInstance("RSA");
             encryptor.init(Cipher.ENCRYPT_MODE, this.publicKey);
             byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
@@ -160,17 +206,18 @@ public class RsaHelpers {
             return encryptedCipherText;
         }
         catch (NoSuchAlgorithmException e) {
-            System.out.println("Algorithm could not be found or used.");
+            System.err.println("Algorithm could not be found or used.");
             e.printStackTrace();
         }
         catch (Exception e) {
-            System.out.println("Internal error while creating new keys for RSA");
+            System.err.println("Internal error while creating new keys for RSA");
             e.printStackTrace();
         }
         return encryptedCipherText;
     }
 
     public String decryptRawDataWithRsa(String data, String uid) {
+        System.out.println("In decryptRawDataWithRsa");
         String decryptedText = null;
         try {
             if (this.privateKey == null || this.publicKey == null) {
@@ -192,14 +239,14 @@ public class RsaHelpers {
             return decryptedText;
         }
         catch (NoSuchAlgorithmException e) {
-            System.out.println("Algorithm could not be found or used.");
+            System.err.println("Algorithm could not be found or used.");
             e.printStackTrace();
         }
         catch (Exception e) {
             if (e.getMessage() == "KeysNotSet") {
-                System.out.println("Keys are not set, leading to error in decryption. ");
+                System.err.println("Keys are not set, leading to error in decryption. ");
             }
-            System.out.println("Internal error while creating new keys for RSA");
+            System.err.println("Internal error while creating new keys for RSA");
             e.printStackTrace();
         }
         return decryptedText;
@@ -254,22 +301,22 @@ public class RsaHelpers {
 
         }
         catch (NoSuchAlgorithmException e) {
-            System.out.println("Algorithm could not be found or used.");
+            System.err.println("Algorithm could not be found or used.");
             e.printStackTrace();
         }
         catch (FileNotFoundException e) {
-            System.out.println("Requested could not be found or used. Path may be broken");
+            System.err.println("Requested could not be found or used. Path may be broken");
             e.printStackTrace();
         } 
         catch (IOException e) {
-            System.out.println("I/O Error. File-handles may be facing a problem.");
+            System.err.println("I/O Error. File-handles may be facing a problem.");
             e.printStackTrace();
         }
         catch (Exception e) {
             if (e.getMessage() == "KeysNotSet") {
-                System.out.println("Keys are not set, leading to error in decryption. ");
+                System.err.println("Keys are not set, leading to error in decryption. ");
             }
-            System.out.println("Internal error while creating new keys for RSA");
+            System.err.println("Internal error while creating new keys for RSA");
             e.printStackTrace();
         }
     }
@@ -323,22 +370,22 @@ public class RsaHelpers {
 
         }
         catch (NoSuchAlgorithmException e) {
-            System.out.println("Algorithm could not be found or used.");
+            System.err.println("Algorithm could not be found or used.");
             e.printStackTrace();
         }
         catch (FileNotFoundException e) {
-            System.out.println("Requested could not be found or used. Path may be broken");
+            System.err.println("Requested could not be found or used. Path may be broken");
             e.printStackTrace();
         } 
         catch (IOException e) {
-            System.out.println("I/O Error. File-handles may be facing a problem.");
+            System.err.println("I/O Error. File-handles may be facing a problem.");
             e.printStackTrace();
         }
         catch (Exception e) {
             if (e.getMessage() == "KeysNotSet") {
-                System.out.println("Keys are not set, leading to error in decryption. ");
+                System.err.println("Keys are not set, leading to error in decryption. ");
             }
-            System.out.println("Internal error while creating new keys for RSA");
+            System.err.println("Internal error while creating new keys for RSA");
             e.printStackTrace();
         }
     }

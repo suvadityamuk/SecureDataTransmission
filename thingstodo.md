@@ -71,4 +71,7 @@
                 3) find database resiliency
                 4) simple bash cronjob to make copies of db at specific time of week
 
+                PROBLEM:
+                1) CREATE TABLE IS NOT BEING INVOKED ANYWHERE, WTF 
+
 

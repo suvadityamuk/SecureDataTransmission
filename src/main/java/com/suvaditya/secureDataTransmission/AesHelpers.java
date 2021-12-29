@@ -23,23 +23,25 @@ public class AesHelpers {
     }
     
     private void generateNewSecretKey() {
+        System.out.println("In generateNewSecretKey");
         try {
             KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
-            keyGenerator.init(512, SecureRandom.getInstanceStrong());
+            keyGenerator.init(256, SecureRandom.getInstanceStrong());
             SecretKey key = keyGenerator.generateKey();
             this.secretKey = key;
         }
         catch (NoSuchAlgorithmException e) {
-            System.out.println("Algorithm could not be found or used.");
+            System.err.println("Algorithm could not be found or used.");
             e.printStackTrace();
         }
         catch (Exception e) {
-            System.out.println("Internal error while creating new keys for AES");
+            System.err.println("Internal error while creating new keys for AES");
             e.printStackTrace();
         }
     }
 
     private void generateIV() {
+        System.out.println("In generateIV");
         byte[] iv = new byte[16];
         new SecureRandom().nextBytes(iv);
         this.iv = iv;
@@ -56,7 +58,7 @@ public class AesHelpers {
         encrypt data in utf8 string type with og aes key as bytes and store as b64 string
         return data and aes key as strings
          */
-
+        System.out.println("In encryptDataAES");
         final int TAG_LENGTH_BIT = 128;
         final String algorithm = "AES/GCM/NoPadding";
         String encryptedData = null;
@@ -81,7 +83,7 @@ public class AesHelpers {
                 newEncryptedAesKeyWithIVPrependedAsBytes[i] = this.iv[i];
             }
             System.arraycopy(tempEncryptedAesKey, 0, newEncryptedAesKeyWithIVPrependedAsBytes, 16, 16);
-            encryptedAesKey = new String(newEncryptedAesKeyWithIVPrependedAsBytes, StandardCharsets.UTF_8);
+            // encryptedAesKey = new String(newEncryptedAesKeyWithIVPrependedAsBytes, StandardCharsets.UTF_8);
 
             Cipher cipher = Cipher.getInstance(algorithm);
             cipher.init(Cipher.ENCRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH_BIT, this.iv));
@@ -90,6 +92,7 @@ public class AesHelpers {
 
             Base64helpers helper = new Base64helpers();
             encryptedData = helper.encodeBytes(encryptedBytes);
+            encryptedAesKey = helper.encodeBytes(newEncryptedAesKeyWithIVPrependedAsBytes);
 
             results.put("AESKey", encryptedAesKey);
             results.put("DataB64", encryptedData);
@@ -97,21 +100,21 @@ public class AesHelpers {
             return results;
         }
         catch (NoSuchAlgorithmException e) {
-            System.out.println("Algorithm could not be found or used.");
+            System.err.println("Algorithm could not be found or used.");
             e.printStackTrace();
         }
         catch (Exception e) {
             if (e.getMessage() == "KeysNotSet") {
-                System.out.println("Keys are not set, leading to error in decryption. ");
+                System.err.println("Keys are not set, leading to error in decryption. ");
             }
-            System.out.println("Internal error while creating new keys for RSA");
+            System.err.println("Internal error while creating new keys for RSA");
             e.printStackTrace();
         }
         return results;
     }
 
     public String decryptData(Map<String, String> dataMap, String uid) {
-
+        System.out.println("In decryptDataAES");
         /*
         Check uid for rsa keys
         if found -> use that to decrypt aes key
@@ -131,8 +134,12 @@ public class AesHelpers {
 
         try {
             String decryptedAesKey = null;
+
+            Base64helpers helper = new Base64helpers();
+            byte[] encryptedAesKeyBytesWithIvPrepended = helper.decodeString(encryptedAesKey).getBytes();
             
-            byte[] encryptedAesKeyBytesWithIvPrepended = encryptedAesKey.getBytes();
+            
+            // byte[] encryptedAesKeyBytesWithIvPrepended = encryptedAesKey.getBytes();
             this.iv = Arrays.copyOfRange(encryptedAesKeyBytesWithIvPrepended, 0, 15);
             
             byte[] onlyAesKeyBytes = new byte[encryptedAesKeyBytesWithIvPrepended.length - 16];
@@ -158,14 +165,14 @@ public class AesHelpers {
 
         }
         catch (NoSuchAlgorithmException e) {
-            System.out.println("Algorithm could not be found or used.");
+            System.err.println("Algorithm could not be found or used.");
             e.printStackTrace();
         }
         catch (Exception e) {
             if (e.getMessage() == "KeysNotSet") {
-                System.out.println("Keys are not set, leading to error in decryption. ");
+                System.err.println("Keys are not set, leading to error in decryption. ");
             }
-            System.out.println("Internal error while creating new keys for RSA");
+            System.err.println("Internal error while creating new keys for RSA");
             e.printStackTrace();
         }
 
