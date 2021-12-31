@@ -3,6 +3,9 @@ package com.suvaditya.secureDataTransmission;
 import java.sql.*;
 import java.nio.file.*;
 import java.util.*;
+
+import org.apache.commons.codec.binary.Hex;
+
 import java.security.*;
 
 public class DatabaseHelpers {
@@ -108,8 +111,8 @@ public class DatabaseHelpers {
         setDatabasePath(databaseName);
         String sqlCreateStatement = String.format("CREATE TABLE IF NOT EXISTS %s (\n", tableName) +
          "  uid text PRIMARY KEY, \n" + 
-         "  rsapublickey BLOB NOT NULL, \n" + 
-         "  rsaprivatekey BLOB NOT NULL\n" + 
+         "  rsapublickey text NOT NULL, \n" + 
+         "  rsaprivatekey text NOT NULL\n" + 
          ");";
         try {
             connectToDb();
@@ -154,8 +157,8 @@ public class DatabaseHelpers {
             connectToDb();
             byte[] publicKeyBytes = rsaPublicKey.getEncoded();
             byte[] privateKeyBytes = rsaPrivateKey.getEncoded();
-            String publicKeyStringDerivedFromBytes = publicKeyBytes.toString();
-            String privateKeyStringDerivedFromBytes = privateKeyBytes.toString();
+            String publicKeyStringDerivedFromBytes = Hex.encodeHexString(publicKeyBytes);
+            String privateKeyStringDerivedFromBytes = Hex.encodeHexString(privateKeyBytes);
             statement.setString(1, uid);
             statement.setString(2, publicKeyStringDerivedFromBytes);
             statement.setString(3, privateKeyStringDerivedFromBytes);
@@ -183,7 +186,7 @@ public class DatabaseHelpers {
         }
     }
 
-    // WARNING : CAN RETURN NULL VALUES
+    // WARNING : CAN RETURN NULL VALUES. RETURNS DECODED HEX STRING IN BYTE ARRAY FORMAT
     public Map<String, byte[]> readKeysFromDatabase(String databaseName, String tableName, String uid) {
         System.out.println("In readKeysFromDatabase");
         setDatabasePath(databaseName);
@@ -199,8 +202,10 @@ public class DatabaseHelpers {
             statement.setString(1, uid);
             ResultSet resultSet = statement.executeQuery();
             while(resultSet.next()) {
-                cryptographicRsaKeys.put("PrivateKey", resultSet.getBinaryStream("rsaprivatekey").readAllBytes().toString().getBytes());
-                cryptographicRsaKeys.put("PublicKey", resultSet.getBinaryStream("rsapublickey").readAllBytes().toString().getBytes());
+                // cryptographicRsaKeys.put("PrivateKey", resultSet.getBinaryStream("rsaprivatekey").readAllBytes().toString().getBytes());
+                // cryptographicRsaKeys.put("PublicKey", resultSet.getBinaryStream("rsapublickey").readAllBytes().toString().getBytes());
+                cryptographicRsaKeys.put("PrivateKey", Hex.decodeHex(resultSet.getString("rsaprivatekey")));
+                cryptographicRsaKeys.put("PublicKey", Hex.decodeHex(resultSet.getString("rsapublickey")));
             }
             if((cryptographicRsaKeys.get("PrivateKey") != null) && (cryptographicRsaKeys.get("PublicKey") != null)) {
                 System.out.println(cryptographicRsaKeys.get("PrivateKey"));
@@ -250,8 +255,8 @@ public class DatabaseHelpers {
                 PreparedStatement statement = conn.prepareStatement(updateStatement);
                 connectToDb();
                 statement.setString(1, uid);
-                statement.setBytes(2, rsaPublicKey.getEncoded());
-                statement.setBytes(3, rsaPublicKey.getEncoded());
+                statement.setString(2, new String(Hex.encodeHex(rsaPublicKey.getEncoded())));
+                statement.setString(3, new String(Hex.encodeHex(rsaPrivateKey.getEncoded())));
                 statement.executeUpdate();
             }
         }

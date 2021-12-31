@@ -1,23 +1,17 @@
 package com.suvaditya.secureDataTransmission;
 
 import java.security.PublicKey;
-import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.EncodedKeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.security.*;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
 import javax.crypto.Cipher;
-import javax.crypto.EncryptedPrivateKeyInfo;
-
-import jdk.jfr.internal.Logger;
 
 import java.io.*;
-import java.math.BigInteger;
 
 public class RsaHelpers {
 
@@ -99,7 +93,7 @@ public class RsaHelpers {
             if (!file.exists()) {
                 helper.createNewDatabase(databaseName, tableName);
             }
-            if (file.exists()) {
+            else if (file.exists()) {
                 // System.out.println("Reached here 1");
 
                 Map<String, byte[]> keyPair = helper.readKeysFromDatabase(databaseName, tableName, uid);
@@ -137,8 +131,10 @@ public class RsaHelpers {
                 // System.out.println("Reached here 5");
 
                 this.publicKey = keyFactory.generatePublic(publicKeySpec);
-                this.privateKey = (RSAPrivateKey) keyFactory.generatePrivate(privateKeySpec);
+                this.privateKey = keyFactory.generatePrivate(privateKeySpec);
                 
+                System.out.println("Re-generated Public key = " + this.publicKey);
+                System.out.println("Regenerated Private key = " + this.privateKey);
                 result = true;
             }
         }
@@ -160,9 +156,24 @@ public class RsaHelpers {
             generateNewKeys();
         }
         if (this.privateKey != null && this.publicKey != null) {
-            System.out.println("\n\n\n\nAbout to save and insert keys to db\n\n\n\n");
-            System.out.println("\nPublic key = \n"+this.publicKey);
-            System.out.println("\nPrivate key = \n"+this.privateKey);
+            // System.out.println("\n\n\n\nAbout to save and insert keys to db\n\n\n\n");
+            // System.out.println("\nPublic key = \n"+this.publicKey);
+            // System.out.println("\nPrivate key = \n"+this.privateKey);
+            // try {
+
+            //     // PublicKey decodedKey = helper.decodeString(helper.encodeString(publicKey.toString()));
+            //     // byte[] decodedKey = Base64.getDecoder().decode(helper.encodeString(publicKey.toString()));
+            //     // System.out.println("\n\n\nNEW PBKEY BYTES = " + decodedKey);
+            //     // PublicKey key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(Hex.decodeHex(Hex.encodeHex(publicKey.getEncoded()))));
+            //     // PrivateKey pkey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(Hex.decodeHex(Hex.encodeHex(privateKey.getEncoded()))));
+            //     // System.out.println("Newly generated public key = " + key);
+            //     // System.out.println("Newly generated private key = " + pkey);
+
+            // }
+            // catch (Exception e) {
+            //     e.printStackTrace();
+            // }
+
             this.helper.insertKeysToDatabase(databaseName, tableName, uid, this.publicKey, this.privateKey);
         } 
         if (this.privateKey != null && this.publicKey != null) {
@@ -200,9 +211,8 @@ public class RsaHelpers {
             byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
             byte[] encryptedDataBytes = encryptor.doFinal(dataBytes);
 
-            Base64helpers b64helper = new Base64helpers();
 
-            encryptedCipherText = b64helper.encodeBytes(encryptedDataBytes);
+            encryptedCipherText = new String(encryptedDataBytes, StandardCharsets.UTF_8);
             return encryptedCipherText;
         }
         catch (NoSuchAlgorithmException e) {
@@ -229,10 +239,9 @@ public class RsaHelpers {
 
             Cipher decryptor = Cipher.getInstance("RSA");
 
-            Base64helpers b64helper = new Base64helpers();
-
             decryptor.init(Cipher.DECRYPT_MODE, this.privateKey);
-            byte[] dataBytes = b64helper.decodeString(data).getBytes(StandardCharsets.UTF_8);
+            // byte[] dataBytes = b64helper.decodeString(data).getBytes(StandardCharsets.UTF_8);
+            byte[] dataBytes = data.getBytes();
             byte[] decryptedDataBytes = decryptor.doFinal(dataBytes);
 
             decryptedText = new String(decryptedDataBytes, StandardCharsets.UTF_8);

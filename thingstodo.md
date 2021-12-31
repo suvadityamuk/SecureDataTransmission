@@ -72,6 +72,7 @@
                 4) simple bash cronjob to make copies of db at specific time of week
 
                 PROBLEM:
-                1) CREATE TABLE IS NOT BEING INVOKED ANYWHERE, WTF 
+                repaired <!-- 1) CREATE TABLE IS NOT BEING INVOKED ANYWHERE, WTF  -->
+                base64 cancel, use hex instead
 
 

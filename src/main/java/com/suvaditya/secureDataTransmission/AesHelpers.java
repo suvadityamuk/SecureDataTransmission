@@ -3,10 +3,11 @@ package com.suvaditya.secureDataTransmission;
 import javax.crypto.*;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-
+import org.apache.commons.codec.binary.Hex;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -47,6 +48,26 @@ public class AesHelpers {
         this.iv = iv;
     }
 
+    private int[] byte2String(byte[] arr) {
+        int[] res = new int[16];
+        for(int i = 0; i<16; i++) {
+            System.out.println(arr[i]);
+            res[i] = (int) i;
+            System.out.println(res[i]);
+        }
+        return res;
+    }
+
+    private byte[] String2byte(int[] arr) {
+        byte[] res = new byte[16];
+        for(int i = 0; i<16; i++) {
+            System.out.println(arr[i]);
+            res[i] = (byte) arr[i];
+            System.out.println(res[i]);
+        }
+        return res;
+    }
+
     public Map<String, String> encryptData(String data, String uid) {
 
 
@@ -73,18 +94,17 @@ public class AesHelpers {
             String encryptedAesKey = null;
 
             RsaHelpers rsahelper = new RsaHelpers(databaseName, tableName);
-            encryptedAesKey = rsahelper.encryptRawDataWithRsa(this.secretKey.toString(), uid);
-
-            // encryptedAesKey = this.iv + encryptedAesKey;
-            byte[] tempEncryptedAesKey = encryptedAesKey.getBytes();
-            // byte[] newEncryptedAesKeyWithIVPrepended = this.iv  tempEncryptedAesKey;
-            byte[] newEncryptedAesKeyWithIVPrependedAsBytes = new byte[tempEncryptedAesKey.length + 16];
+            encryptedAesKey = rsahelper.encryptRawDataWithRsa(Hex.encodeHexString(this.secretKey.getEncoded()), uid); // encoding aes key in hex
+            String str = Base64.getEncoder().encodeToString(this.iv);
+            System.out.println("IV AS NORMAL STRING = " + str);
+            byte[] newArr = Base64.getDecoder().decode(str);
             for(int i = 0; i<16; i++) {
-                newEncryptedAesKeyWithIVPrependedAsBytes[i] = this.iv[i];
+                System.out.println(this.iv[i]);
+                System.out.println(newArr[i]); 
             }
-            System.arraycopy(tempEncryptedAesKey, 0, newEncryptedAesKeyWithIVPrependedAsBytes, 16, 16);
-            // encryptedAesKey = new String(newEncryptedAesKeyWithIVPrependedAsBytes, StandardCharsets.UTF_8);
-
+            encryptedAesKey = str + encryptedAesKey;
+            // encryptedAesKey = this.iv.toString() + encryptedAesKey;
+            // byte[] newEncryptedAesKeyWithIVPrepended = this.iv  tempEncryptedAesKey;
             Cipher cipher = Cipher.getInstance(algorithm);
             cipher.init(Cipher.ENCRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH_BIT, this.iv));
             byte[] dataBytes = data.getBytes();
@@ -92,7 +112,7 @@ public class AesHelpers {
 
             Base64helpers helper = new Base64helpers();
             encryptedData = helper.encodeBytes(encryptedBytes);
-            encryptedAesKey = helper.encodeBytes(newEncryptedAesKeyWithIVPrependedAsBytes);
+            encryptedAesKey = Base64.getEncoder().encodeToString(encryptedAesKey.getBytes());
 
             results.put("AESKey", encryptedAesKey);
             results.put("DataB64", encryptedData);
@@ -135,21 +155,23 @@ public class AesHelpers {
         try {
             String decryptedAesKey = null;
 
-            Base64helpers helper = new Base64helpers();
-            byte[] encryptedAesKeyBytesWithIvPrepended = helper.decodeString(encryptedAesKey).getBytes();
-            
+            // Base64helpers helper = new Base64helpers();
+            // byte[] encryptedAesKeyBytesWithIvPrepended = helper.decodeString(encryptedAesKey).getBytes();
+            byte[] aeskeyinbytes = Base64.getDecoder().decode(encryptedAesKey);
+            String str = new String(aeskeyinbytes, StandardCharsets.UTF_8);
+            String base64encodedIV = str.substring(0, 24);
+            byte[] iv = Base64.getDecoder().decode(base64encodedIV);
+            this.iv = iv;
+
             
             // byte[] encryptedAesKeyBytesWithIvPrepended = encryptedAesKey.getBytes();
-            this.iv = Arrays.copyOfRange(encryptedAesKeyBytesWithIvPrepended, 0, 15);
+            // this.iv = Arrays.copyOfRange(encryptedAesKeyBytesWithIvPrepended, 0, 15);
             
-            byte[] onlyAesKeyBytes = new byte[encryptedAesKeyBytesWithIvPrepended.length - 16];
-            for(int i = 16; i<encryptedAesKeyBytesWithIvPrepended.length; i++) {
-                onlyAesKeyBytes[i-16] = encryptedAesKeyBytesWithIvPrepended[i];
-            }
-            encryptedAesKey = new String(onlyAesKeyBytes, StandardCharsets.UTF_8);
+            String b64encodedAESkey = str.substring(24);
+            String b64decryptedRSAencryptedAESkey = new String(Base64.getDecoder().decode(b64encodedAESkey), StandardCharsets.UTF_8);
 
             RsaHelpers rsahelper = new RsaHelpers(databaseName, tableName);
-            decryptedAesKey = rsahelper.decryptRawDataWithRsa(encryptedAesKey, uid);
+            decryptedAesKey = rsahelper.decryptRawDataWithRsa(b64decryptedRSAencryptedAESkey, uid);
 
             byte[] bytesKey = decryptedAesKey.getBytes();
             this.secretKey = new SecretKeySpec(bytesKey, 0, bytesKey.length, "AES");
