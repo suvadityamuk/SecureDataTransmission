@@ -11,6 +11,8 @@ import java.util.*;
 
 import javax.crypto.Cipher;
 
+import org.apache.commons.codec.binary.Hex;
+
 import java.io.*;
 
 public class RsaHelpers {
@@ -196,6 +198,7 @@ public class RsaHelpers {
         System.out.println("In encryptRawDataWithRsa");
         String encryptedCipherText = null;
         try {
+            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + data.getBytes().length);
             // If loading keys for first time
             if (this.privateKey == null || this.privateKey == null) {
                 loadKeyPairFromDatabase(this.databaseName, this.tableName, uid);
@@ -211,8 +214,13 @@ public class RsaHelpers {
             byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
             byte[] encryptedDataBytes = encryptor.doFinal(dataBytes);
 
-
+            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + encryptedDataBytes.length);
             encryptedCipherText = new String(encryptedDataBytes, StandardCharsets.UTF_8);
+            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + encryptedCipherText.getBytes().length);
+            // byte[] extractedBytes = encryptedCipherText.getBytes(StandardCharsets.UTF_8);
+            encryptedCipherText = Hex.encodeHexString(encryptedDataBytes);
+            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + encryptedCipherText.getBytes().length);
+            // System.out.println("SIZE OF DATA (SHOULD BE 256) = " + extractedBytes.length);
             return encryptedCipherText;
         }
         catch (NoSuchAlgorithmException e) {
@@ -237,14 +245,25 @@ public class RsaHelpers {
                 }
             }
 
-            Cipher decryptor = Cipher.getInstance("RSA");
+            Cipher decryptor = Cipher.getInstance("RSA/ECB/PKCS1Padding");
 
             decryptor.init(Cipher.DECRYPT_MODE, this.privateKey);
             // byte[] dataBytes = b64helper.decodeString(data).getBytes(StandardCharsets.UTF_8);
-            byte[] dataBytes = data.getBytes();
-            byte[] decryptedDataBytes = decryptor.doFinal(dataBytes);
-
-            decryptedText = new String(decryptedDataBytes, StandardCharsets.UTF_8);
+            // byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
+            byte[] dataBytes = Hex.decodeHex(data);
+            System.out.println("RSA DATA BEING PASSED = " + dataBytes.length);
+            // byte[] dataBytes = Hex.decodeHex(data);
+            // byte[] arr1 = new byte[256];
+            // byte[] arr2 = new byte[dataBytes.length - 256];
+            // System.arraycopy(dataBytes, 0, arr1, 0, 256);
+            // System.arraycopy(dataBytes, 256, arr2, 0, dataBytes.length-256);
+            // byte[] decryptedDataBytes1 = decryptor.doFinal(arr1);
+            // byte[] decryptedDataBytes2 = decryptor.doFinal(arr2);
+            dataBytes = decryptor.doFinal(dataBytes);
+            // // byte[] dataNewBytes = new byte[decryptedDataBytes1.length + decryptedDataBytes2.length];
+            // System.arraycopy(arr1, 0, dataNewBytes, 0, arr1.length);
+            // System.arraycopy(arr2, 0, dataNewBytes, arr1.length, arr2.length);
+            decryptedText = new String(dataBytes, StandardCharsets.UTF_8);
             return decryptedText;
         }
         catch (NoSuchAlgorithmException e) {

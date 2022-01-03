@@ -6,7 +6,6 @@ import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +29,10 @@ public class AesHelpers {
             keyGenerator.init(256, SecureRandom.getInstanceStrong());
             SecretKey key = keyGenerator.generateKey();
             this.secretKey = key;
+            int maxKeyLen = Cipher.getMaxAllowedKeyLength("AES");
+            System.out.println("SIZE OF KEY - SHOULD BE 256 = " + this.secretKey.getEncoded().length);
+            System.out.println("SIZE OF KEY - SHOULD BE 256 = " + maxKeyLen);
+            System.out.println("SIZE OF KEY - SHOULD BE 256 = " + this.secretKey.getAlgorithm());
         }
         catch (NoSuchAlgorithmException e) {
             System.err.println("Algorithm could not be found or used.");
@@ -46,26 +49,6 @@ public class AesHelpers {
         byte[] iv = new byte[16];
         new SecureRandom().nextBytes(iv);
         this.iv = iv;
-    }
-
-    private int[] byte2String(byte[] arr) {
-        int[] res = new int[16];
-        for(int i = 0; i<16; i++) {
-            System.out.println(arr[i]);
-            res[i] = (int) i;
-            System.out.println(res[i]);
-        }
-        return res;
-    }
-
-    private byte[] String2byte(int[] arr) {
-        byte[] res = new byte[16];
-        for(int i = 0; i<16; i++) {
-            System.out.println(arr[i]);
-            res[i] = (byte) arr[i];
-            System.out.println(res[i]);
-        }
-        return res;
     }
 
     public Map<String, String> encryptData(String data, String uid) {
@@ -110,8 +93,7 @@ public class AesHelpers {
             byte[] dataBytes = data.getBytes();
             byte[] encryptedBytes = cipher.doFinal(dataBytes);
 
-            Base64helpers helper = new Base64helpers();
-            encryptedData = helper.encodeBytes(encryptedBytes);
+            encryptedData = Base64.getEncoder().encodeToString(encryptedBytes);
             encryptedAesKey = Base64.getEncoder().encodeToString(encryptedAesKey.getBytes());
 
             results.put("AESKey", encryptedAesKey);
@@ -158,8 +140,15 @@ public class AesHelpers {
             // Base64helpers helper = new Base64helpers();
             // byte[] encryptedAesKeyBytesWithIvPrepended = helper.decodeString(encryptedAesKey).getBytes();
             byte[] aeskeyinbytes = Base64.getDecoder().decode(encryptedAesKey);
+            System.out.println("AES KEY IN BYTES = " + aeskeyinbytes);
             String str = new String(aeskeyinbytes, StandardCharsets.UTF_8);
+            System.out.println("AES KEY ENCODED AS STRING = " + str);
+            System.out.println("AES KEY ENCODED AS STRING = " + str);
+            System.out.println("AES KEY ENCODED AS STRING = " + str);
+            System.out.println("DATA ENCODED AS STRING = " + data);
+            System.out.println("AES KEY ENCRYPTED AS STRING = " + encryptedAesKey);
             String base64encodedIV = str.substring(0, 24);
+            System.out.println("IV AS B64 IN BYTES = " + base64encodedIV);
             byte[] iv = Base64.getDecoder().decode(base64encodedIV);
             this.iv = iv;
 
@@ -167,18 +156,25 @@ public class AesHelpers {
             // byte[] encryptedAesKeyBytesWithIvPrepended = encryptedAesKey.getBytes();
             // this.iv = Arrays.copyOfRange(encryptedAesKeyBytesWithIvPrepended, 0, 15);
             
-            String b64encodedAESkey = str.substring(24);
-            String b64decryptedRSAencryptedAESkey = new String(Base64.getDecoder().decode(b64encodedAESkey), StandardCharsets.UTF_8);
+            String b64encodedAESkey = str.substring(24, str.length());
+            System.out.println("ABCDEF = " + b64encodedAESkey);
+            // String b64decryptedRSAencryptedAESkey = new String(Base64.getDecoder().decode(b64encodedAESkey), StandardCharsets.UTF_8);
+            // String b64decryptedRSAencryptedAESkey = new String(Hex.decodeHex(b64encodedAESkey), StandardCharsets.UTF_8);
 
             RsaHelpers rsahelper = new RsaHelpers(databaseName, tableName);
-            decryptedAesKey = rsahelper.decryptRawDataWithRsa(b64decryptedRSAencryptedAESkey, uid);
+            // decryptedAesKey = rsahelper.decryptRawDataWithRsa(b64decryptedRSAencryptedAESkey, uid);
+            decryptedAesKey = rsahelper.decryptRawDataWithRsa(b64encodedAESkey, uid);
 
             byte[] bytesKey = decryptedAesKey.getBytes();
-            this.secretKey = new SecretKeySpec(bytesKey, 0, bytesKey.length, "AES");
+            System.out.println("byteskey = " + bytesKey.length);
+            String newkey = new String(bytesKey, StandardCharsets.UTF_8);
+            System.out.println("byteskey = " + Hex.decodeHex(newkey).length);
+            this.secretKey = new SecretKeySpec(Hex.decodeHex(newkey), 0, Hex.decodeHex(newkey).length, "AES");
 
             Cipher cipher = Cipher.getInstance(algorithm);
             cipher.init(Cipher.DECRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH_BIT, this.iv));
-            byte[] dataBytes = data.getBytes();
+            // byte[] dataBytes = data.getBytes();
+            byte[] dataBytes = Base64.getDecoder().decode(data);
             byte[] decryptedBytes = cipher.doFinal(dataBytes);
 
             decryptedData = new String(decryptedBytes, StandardCharsets.UTF_8);

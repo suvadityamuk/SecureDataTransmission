@@ -13,7 +13,8 @@ public class App
     {
         AesHelpers helper = new AesHelpers();
         final String uid = "ABCD1234UID";
-        final String data = "{data: test, keys and other bs: 1256}";
+        final String data = "{data: hello}";
+        // trying to emulate a simple json string since that is what will normally be done
         Map<String, String> result = helper.encryptData(data, uid);
         System.out.println("Main Result.get AESKEY = " + result.get("AESKey"));
         System.out.println("Main Result.get B64 = " + result.get("DataB64"));
