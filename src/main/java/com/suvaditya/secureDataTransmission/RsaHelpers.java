@@ -89,54 +89,29 @@ public class RsaHelpers {
         boolean result = false;
         try {
             String currentWorkingDir = FileSystems.getDefault().getPath("").toAbsolutePath().toString();
-            System.out.println(currentWorkingDir);
             String filePath = currentWorkingDir + String.format("/%s", databaseName) + ".sqlite";
             File file = new File(filePath);
             if (!file.exists()) {
                 helper.createNewDatabase(databaseName, tableName);
             }
             else if (file.exists()) {
-                // System.out.println("Reached here 1");
-
                 Map<String, byte[]> keyPair = helper.readKeysFromDatabase(databaseName, tableName, uid);
 
-                // System.out.println("Reached here 2");
                 byte[] privateKeyBytes = keyPair.get("PrivateKey");
                 byte[] publicKeyBytes = keyPair.get("PublicKey");
                 if (publicKeyBytes == null || privateKeyBytes == null) {
                     System.out.println("Private and public key bytes are null");
                 } 
-                // System.out.println("Reached here 3");
 
                 KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 
-                // System.out.println("Reached here 4");
-                System.out.println("Public key bytes = " + publicKeyBytes);
-                System.out.println("Private key bytes = " + privateKeyBytes);
-
                 EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
 
-                // BigInteger one = new BigInteger(privateKeyBytes);
-                // String temp = one.toString(8);
-                // System.out.println(Charset.availableCharsets());
-                // byte[] temp1 = temp.getBytes();
-
-                // EncryptedPrivateKeyInfo privateKeyInfo = new EncryptedPrivateKeyInfo(temp1);
-
-                // System.out.println("PrivateKeyInfo = " + privateKeyInfo);
-                // System.out.println("PrivateKeyInfo AlgName= " + privateKeyInfo.getAlgName());
-                // System.out.println("PrivateKeyInfo AlgParams= " + privateKeyInfo.getAlgParameters());
-
                 PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-                
-                
-                // System.out.println("Reached here 5");
 
                 this.publicKey = keyFactory.generatePublic(publicKeySpec);
                 this.privateKey = keyFactory.generatePrivate(privateKeySpec);
                 
-                System.out.println("Re-generated Public key = " + this.publicKey);
-                System.out.println("Regenerated Private key = " + this.privateKey);
                 result = true;
             }
         }
@@ -158,24 +133,6 @@ public class RsaHelpers {
             generateNewKeys();
         }
         if (this.privateKey != null && this.publicKey != null) {
-            // System.out.println("\n\n\n\nAbout to save and insert keys to db\n\n\n\n");
-            // System.out.println("\nPublic key = \n"+this.publicKey);
-            // System.out.println("\nPrivate key = \n"+this.privateKey);
-            // try {
-
-            //     // PublicKey decodedKey = helper.decodeString(helper.encodeString(publicKey.toString()));
-            //     // byte[] decodedKey = Base64.getDecoder().decode(helper.encodeString(publicKey.toString()));
-            //     // System.out.println("\n\n\nNEW PBKEY BYTES = " + decodedKey);
-            //     // PublicKey key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(Hex.decodeHex(Hex.encodeHex(publicKey.getEncoded()))));
-            //     // PrivateKey pkey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(Hex.decodeHex(Hex.encodeHex(privateKey.getEncoded()))));
-            //     // System.out.println("Newly generated public key = " + key);
-            //     // System.out.println("Newly generated private key = " + pkey);
-
-            // }
-            // catch (Exception e) {
-            //     e.printStackTrace();
-            // }
-
             this.helper.insertKeysToDatabase(databaseName, tableName, uid, this.publicKey, this.privateKey);
         } 
         if (this.privateKey != null && this.publicKey != null) {
@@ -198,7 +155,6 @@ public class RsaHelpers {
         System.out.println("In encryptRawDataWithRsa");
         String encryptedCipherText = null;
         try {
-            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + data.getBytes().length);
             // If loading keys for first time
             if (this.privateKey == null || this.privateKey == null) {
                 loadKeyPairFromDatabase(this.databaseName, this.tableName, uid);
@@ -214,13 +170,8 @@ public class RsaHelpers {
             byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
             byte[] encryptedDataBytes = encryptor.doFinal(dataBytes);
 
-            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + encryptedDataBytes.length);
             encryptedCipherText = new String(encryptedDataBytes, StandardCharsets.UTF_8);
-            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + encryptedCipherText.getBytes().length);
-            // byte[] extractedBytes = encryptedCipherText.getBytes(StandardCharsets.UTF_8);
             encryptedCipherText = Hex.encodeHexString(encryptedDataBytes);
-            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + encryptedCipherText.getBytes().length);
-            // System.out.println("SIZE OF DATA (SHOULD BE 256) = " + extractedBytes.length);
             return encryptedCipherText;
         }
         catch (NoSuchAlgorithmException e) {
@@ -248,21 +199,8 @@ public class RsaHelpers {
             Cipher decryptor = Cipher.getInstance("RSA/ECB/PKCS1Padding");
 
             decryptor.init(Cipher.DECRYPT_MODE, this.privateKey);
-            // byte[] dataBytes = b64helper.decodeString(data).getBytes(StandardCharsets.UTF_8);
-            // byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
             byte[] dataBytes = Hex.decodeHex(data);
-            System.out.println("RSA DATA BEING PASSED = " + dataBytes.length);
-            // byte[] dataBytes = Hex.decodeHex(data);
-            // byte[] arr1 = new byte[256];
-            // byte[] arr2 = new byte[dataBytes.length - 256];
-            // System.arraycopy(dataBytes, 0, arr1, 0, 256);
-            // System.arraycopy(dataBytes, 256, arr2, 0, dataBytes.length-256);
-            // byte[] decryptedDataBytes1 = decryptor.doFinal(arr1);
-            // byte[] decryptedDataBytes2 = decryptor.doFinal(arr2);
             dataBytes = decryptor.doFinal(dataBytes);
-            // // byte[] dataNewBytes = new byte[decryptedDataBytes1.length + decryptedDataBytes2.length];
-            // System.arraycopy(arr1, 0, dataNewBytes, 0, arr1.length);
-            // System.arraycopy(arr2, 0, dataNewBytes, arr1.length, arr2.length);
             decryptedText = new String(dataBytes, StandardCharsets.UTF_8);
             return decryptedText;
         }
