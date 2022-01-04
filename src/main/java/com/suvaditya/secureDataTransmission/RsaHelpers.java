@@ -15,18 +15,36 @@ import org.apache.commons.codec.binary.Hex;
 
 import java.io.*;
 
-public class RsaHelpers {
+/**
+ * public class RsaHelpers
+ * @author Suvaditya Mukherjee <suvadityamuk@gmail.com>
+ * @version 1.0.0
+ * @param
+ * <p>
+ * <b>Dependencies</b>:
+ *  {@code java.security.spec.*, java.nio.charset.StandardCharsets, java.nio.file.*, java.util.*, java.io.*, javax.crypto.Cipher, org.apache.commons.codec.binary.Hex} 
+ * </p>
+ * <p>
+ * <b>Private Variables</b>:<br>
+ *  1) java.security.PublicKey publicKey <br>
+ *  2) java.security.PrivateKey privateKey <br>
+ *  3) DatabaseHelpers helper <br>
+ *  4) String databaseName <br>
+ *  5) String tableName <br>
+ * </p>
+ * <p>
+ * <b>Methods available</b>:<br>
+ *  1) private generateNewKeys()<br>
+ *  2) public loadKeyPairFromDatabase()<br>
+ *  3) public saveNewKeypairToDatabase()<br>
+ *  4) public encryptRawDataWithRsa()<br>
+ *  5) public decryptRawDataWithRsa()<br>
+ *  6) public encryptFileWithRsa()<br>
+ *  7) public decryptFileWithRsa()<br>
+ * </p>
+ */
 
-    /**
-     * Functions: 
-     * generateNewKeys()
-     * loadKeyPairFromDatabase(String databaseName, String tableName, String uid)
-     * saveNewKeypairToDatabase(String databaseName, String tableName, String uid)
-     * encryptRawDataWithRsa(String data, String uid)
-     * decryptRawDataWithRsa(String data, String uid)
-     * encryptFileWithRsa(String pathToFile, String uid, String fileExtension)
-     * decryptFileWithRsa(String pathToFile, String uid, String fileExtension)
-     */
+public class RsaHelpers {
     
     private PrivateKey privateKey;
     private PublicKey publicKey;
@@ -58,8 +76,11 @@ public class RsaHelpers {
         helper = new DatabaseHelpers();
     }
 
-    
-
+    /**
+     * Returns a newly generated keypair for RSA-2048 encryption.
+     * @param None
+     * @return void  
+     */
     private void generateNewKeys() {
         System.out.println("In generateNewKeys");
         try {
@@ -79,6 +100,14 @@ public class RsaHelpers {
         }
     }
 
+    /**
+     * Initialises instance PrivateKey and PublicKey variables by using the database and querying the presence of a keypair against supplied UID. If yes,
+     * reads the keys, encodes and loads them as proper PublicKey and PrivateKey.
+     * @param databaseName
+     * @param tableName
+     * @param uid
+     * @return boolean
+     */
     public boolean loadKeyPairFromDatabase(String databaseName, String tableName, String uid) {
         /*
         Check if db exists
@@ -89,54 +118,29 @@ public class RsaHelpers {
         boolean result = false;
         try {
             String currentWorkingDir = FileSystems.getDefault().getPath("").toAbsolutePath().toString();
-            System.out.println(currentWorkingDir);
             String filePath = currentWorkingDir + String.format("/%s", databaseName) + ".sqlite";
             File file = new File(filePath);
             if (!file.exists()) {
                 helper.createNewDatabase(databaseName, tableName);
             }
             else if (file.exists()) {
-                // System.out.println("Reached here 1");
-
                 Map<String, byte[]> keyPair = helper.readKeysFromDatabase(databaseName, tableName, uid);
 
-                // System.out.println("Reached here 2");
                 byte[] privateKeyBytes = keyPair.get("PrivateKey");
                 byte[] publicKeyBytes = keyPair.get("PublicKey");
                 if (publicKeyBytes == null || privateKeyBytes == null) {
                     System.out.println("Private and public key bytes are null");
                 } 
-                // System.out.println("Reached here 3");
 
                 KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 
-                // System.out.println("Reached here 4");
-                System.out.println("Public key bytes = " + publicKeyBytes);
-                System.out.println("Private key bytes = " + privateKeyBytes);
-
                 EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
 
-                // BigInteger one = new BigInteger(privateKeyBytes);
-                // String temp = one.toString(8);
-                // System.out.println(Charset.availableCharsets());
-                // byte[] temp1 = temp.getBytes();
-
-                // EncryptedPrivateKeyInfo privateKeyInfo = new EncryptedPrivateKeyInfo(temp1);
-
-                // System.out.println("PrivateKeyInfo = " + privateKeyInfo);
-                // System.out.println("PrivateKeyInfo AlgName= " + privateKeyInfo.getAlgName());
-                // System.out.println("PrivateKeyInfo AlgParams= " + privateKeyInfo.getAlgParameters());
-
                 PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-                
-                
-                // System.out.println("Reached here 5");
 
                 this.publicKey = keyFactory.generatePublic(publicKeySpec);
                 this.privateKey = keyFactory.generatePrivate(privateKeySpec);
                 
-                System.out.println("Re-generated Public key = " + this.publicKey);
-                System.out.println("Regenerated Private key = " + this.privateKey);
                 result = true;
             }
         }
@@ -151,6 +155,13 @@ public class RsaHelpers {
         return result;
     }
 
+    /**
+     * Saves the instance PublicKey and PrivateKey into the database against the supplied UID.
+     * @param databaseName
+     * @param tableName
+     * @param uid
+     * @return boolean
+     */
     private boolean saveNewKeypairToDatabase(String databaseName, String tableName, String uid) {
         System.out.println("In saveNewKeypairToDatabase");
         boolean result = false;
@@ -158,24 +169,6 @@ public class RsaHelpers {
             generateNewKeys();
         }
         if (this.privateKey != null && this.publicKey != null) {
-            // System.out.println("\n\n\n\nAbout to save and insert keys to db\n\n\n\n");
-            // System.out.println("\nPublic key = \n"+this.publicKey);
-            // System.out.println("\nPrivate key = \n"+this.privateKey);
-            // try {
-
-            //     // PublicKey decodedKey = helper.decodeString(helper.encodeString(publicKey.toString()));
-            //     // byte[] decodedKey = Base64.getDecoder().decode(helper.encodeString(publicKey.toString()));
-            //     // System.out.println("\n\n\nNEW PBKEY BYTES = " + decodedKey);
-            //     // PublicKey key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(Hex.decodeHex(Hex.encodeHex(publicKey.getEncoded()))));
-            //     // PrivateKey pkey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(Hex.decodeHex(Hex.encodeHex(privateKey.getEncoded()))));
-            //     // System.out.println("Newly generated public key = " + key);
-            //     // System.out.println("Newly generated private key = " + pkey);
-
-            // }
-            // catch (Exception e) {
-            //     e.printStackTrace();
-            // }
-
             this.helper.insertKeysToDatabase(databaseName, tableName, uid, this.publicKey, this.privateKey);
         } 
         if (this.privateKey != null && this.publicKey != null) {
@@ -184,6 +177,13 @@ public class RsaHelpers {
         return result;
     }
 
+    /**
+     * Encrypt String data using RSA-2048 encryption. If instance has keys loaded, it is used to encrypt the data directly.
+     * If not, keys are first generated, saved into the database against the UID and then encryption-process begins.
+     * @param data
+     * @param uid
+     * @return String 
+     */
     public String encryptRawDataWithRsa(String data, String uid) {
         /*
         Check if instance has keys loaded. 
@@ -198,7 +198,6 @@ public class RsaHelpers {
         System.out.println("In encryptRawDataWithRsa");
         String encryptedCipherText = null;
         try {
-            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + data.getBytes().length);
             // If loading keys for first time
             if (this.privateKey == null || this.privateKey == null) {
                 loadKeyPairFromDatabase(this.databaseName, this.tableName, uid);
@@ -214,13 +213,8 @@ public class RsaHelpers {
             byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
             byte[] encryptedDataBytes = encryptor.doFinal(dataBytes);
 
-            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + encryptedDataBytes.length);
             encryptedCipherText = new String(encryptedDataBytes, StandardCharsets.UTF_8);
-            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + encryptedCipherText.getBytes().length);
-            // byte[] extractedBytes = encryptedCipherText.getBytes(StandardCharsets.UTF_8);
             encryptedCipherText = Hex.encodeHexString(encryptedDataBytes);
-            System.out.println("SIZE OF DATA (SHOULD BE 256) = " + encryptedCipherText.getBytes().length);
-            // System.out.println("SIZE OF DATA (SHOULD BE 256) = " + extractedBytes.length);
             return encryptedCipherText;
         }
         catch (NoSuchAlgorithmException e) {
@@ -234,6 +228,13 @@ public class RsaHelpers {
         return encryptedCipherText;
     }
 
+    /**
+     * Decrypt ciphertext generated from RSA-2048 encryption with valid keys. Checks if instance has keys present, otherwise loads them from 
+     * database against UID and continues decryption process.
+     * @param data
+     * @param uid
+     * @return String
+     */
     public String decryptRawDataWithRsa(String data, String uid) {
         System.out.println("In decryptRawDataWithRsa");
         String decryptedText = null;
@@ -241,28 +242,15 @@ public class RsaHelpers {
             if (this.privateKey == null || this.publicKey == null) {
                 loadKeyPairFromDatabase(this.databaseName, this.tableName, uid);
                 if (this.privateKey == null || this.publicKey == null) {
-                    throw new Exception("KeysNotSet");
+                    throw new RuntimeException("KeysNotSet");
                 }
             }
 
             Cipher decryptor = Cipher.getInstance("RSA/ECB/PKCS1Padding");
 
             decryptor.init(Cipher.DECRYPT_MODE, this.privateKey);
-            // byte[] dataBytes = b64helper.decodeString(data).getBytes(StandardCharsets.UTF_8);
-            // byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
             byte[] dataBytes = Hex.decodeHex(data);
-            System.out.println("RSA DATA BEING PASSED = " + dataBytes.length);
-            // byte[] dataBytes = Hex.decodeHex(data);
-            // byte[] arr1 = new byte[256];
-            // byte[] arr2 = new byte[dataBytes.length - 256];
-            // System.arraycopy(dataBytes, 0, arr1, 0, 256);
-            // System.arraycopy(dataBytes, 256, arr2, 0, dataBytes.length-256);
-            // byte[] decryptedDataBytes1 = decryptor.doFinal(arr1);
-            // byte[] decryptedDataBytes2 = decryptor.doFinal(arr2);
             dataBytes = decryptor.doFinal(dataBytes);
-            // // byte[] dataNewBytes = new byte[decryptedDataBytes1.length + decryptedDataBytes2.length];
-            // System.arraycopy(arr1, 0, dataNewBytes, 0, arr1.length);
-            // System.arraycopy(arr2, 0, dataNewBytes, arr1.length, arr2.length);
             decryptedText = new String(dataBytes, StandardCharsets.UTF_8);
             return decryptedText;
         }
@@ -280,6 +268,9 @@ public class RsaHelpers {
         return decryptedText;
     }
     
+    /**
+     * WORK IN PROGRESS, DO NOT USE
+     */
     public void encryptFileWithRsa(String pathToFile, String uid, String fileExtension) {
         if (fileExtension.charAt(0) != '.') {
             System.out.println("File Extension incorrect. Please check it carefully.");
@@ -349,6 +340,12 @@ public class RsaHelpers {
         }
     }
 
+    /**
+     * WORK IN PROGRESS, DO NOT USE
+     * @param pathToFile
+     * @param uid
+     * @param fileExtension
+     */
     public void decryptFileWithRsa(String pathToFile, String uid, String fileExtension) {
         if (fileExtension.charAt(0) != '.') {
             System.out.println("File Extension incorrect. Please check it carefully.");

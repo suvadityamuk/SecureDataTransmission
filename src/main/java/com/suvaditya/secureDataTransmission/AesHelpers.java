@@ -10,6 +10,31 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * public class AesHelpers()
+ * 
+ * @author  Suvaditya Mukherjee <suvadityamuk@gmail.com>
+ * @version 1.0.0
+ * @param
+ * <p>
+ * <b>Dependencies</b>:
+ *  {@code org.apache.commons.codec.binary.Hex, java.nio.charset.StandardCharsets, java.security, java.util} 
+ * </p>
+ * <p>
+ * <b>Private Variables</b>:<br>
+ *  1) javax.crypto.SecretKey secretkey <br>
+ *  2) byte[] iv <br>
+ *  3) String databaseName <br>
+ *  4) String tableName <br>
+ * </p>
+ * <p>
+ * <b>Methods available</b>:<br>
+ *  1) private generateNewSecretKey<br>
+ *  2) private generateIV<br>
+ *  3) public encryptData<br>
+ *  4) public decryptData<br>
+ * </p>
+ */
 public class AesHelpers {
     private SecretKey secretKey;
     private byte[] iv;
@@ -21,7 +46,11 @@ public class AesHelpers {
         secretKey = null;
         iv = null;
     }
-    
+    /**
+     * Returns a newly generated key for AES-256 encryption.
+     * @param None
+     * @return void  
+     */
     private void generateNewSecretKey() {
         System.out.println("In generateNewSecretKey");
         try {
@@ -29,10 +58,6 @@ public class AesHelpers {
             keyGenerator.init(256, SecureRandom.getInstanceStrong());
             SecretKey key = keyGenerator.generateKey();
             this.secretKey = key;
-            int maxKeyLen = Cipher.getMaxAllowedKeyLength("AES");
-            System.out.println("SIZE OF KEY - SHOULD BE 256 = " + this.secretKey.getEncoded().length);
-            System.out.println("SIZE OF KEY - SHOULD BE 256 = " + maxKeyLen);
-            System.out.println("SIZE OF KEY - SHOULD BE 256 = " + this.secretKey.getAlgorithm());
         }
         catch (NoSuchAlgorithmException e) {
             System.err.println("Algorithm could not be found or used.");
@@ -44,6 +69,11 @@ public class AesHelpers {
         }
     }
 
+    /**
+     * Returns a randomly-generated 16-byte array used as Initialisation Vector
+     * @param None
+     * @return void 
+     */
     private void generateIV() {
         System.out.println("In generateIV");
         byte[] iv = new byte[16];
@@ -51,18 +81,24 @@ public class AesHelpers {
         this.iv = iv;
     }
 
+    /**
+     * <p>
+     * Encrypt String-based data. Requires user UID to validate and perform other internal functions.<br><br>
+     * 
+     * It will first generate a new AES Key and a corresponding IV. Using UID, it will check if a RSA-2048 key 
+     * exists against that UID. <br><br>If yes, it will query, load and encrypt the AES Key with RSA-2048 encryption.
+     * <br><br>If not found, new RSA-2048 keys will be generated and loaded into the database against the UID provided. <br><br>
+     * 
+     * It will then initialise a Cipher and encrypt the original String data using the AES key previously generated. 
+     * </p>
+     * @param data
+     * @param uid
+     * @return <b>Map &lt String, String &gt</b><br><br>
+     * <b>AESKey</b>: AES-Key in Base64 format with IV prepended <br><br>
+     * <b>DataB64</b>: Ciphertext in Base64 format
+     */
     public Map<String, String> encryptData(String data, String uid) {
 
-
-        /*
-        generate new aes key and iv
-        check if uid has rsa key from db. 
-        if yes -> use that to encrypt aes key
-        if no -> (create new rsa keys and store in db)  - handled in rsa side and encrypt aes
-        encrypt data in utf8 string type with og aes key as bytes and store as b64 string
-        return data and aes key as strings
-         */
-        System.out.println("In encryptDataAES");
         final int TAG_LENGTH_BIT = 128;
         final String algorithm = "AES/GCM/NoPadding";
         String encryptedData = null;
@@ -79,15 +115,7 @@ public class AesHelpers {
             RsaHelpers rsahelper = new RsaHelpers(databaseName, tableName);
             encryptedAesKey = rsahelper.encryptRawDataWithRsa(Hex.encodeHexString(this.secretKey.getEncoded()), uid); // encoding aes key in hex
             String str = Base64.getEncoder().encodeToString(this.iv);
-            System.out.println("IV AS NORMAL STRING = " + str);
-            byte[] newArr = Base64.getDecoder().decode(str);
-            for(int i = 0; i<16; i++) {
-                System.out.println(this.iv[i]);
-                System.out.println(newArr[i]); 
-            }
             encryptedAesKey = str + encryptedAesKey;
-            // encryptedAesKey = this.iv.toString() + encryptedAesKey;
-            // byte[] newEncryptedAesKeyWithIVPrepended = this.iv  tempEncryptedAesKey;
             Cipher cipher = Cipher.getInstance(algorithm);
             cipher.init(Cipher.ENCRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH_BIT, this.iv));
             byte[] dataBytes = data.getBytes();
@@ -115,17 +143,22 @@ public class AesHelpers {
         return results;
     }
 
+    /**
+     * <p>
+     * Decrypt ciphertext. Requires user UID to validate and perform other internal functions.<br><br>
+     * 
+     * The UID will be used to query the internal database to find if a RSA-2048 key exists. <br><br>If it does, only then will
+     * it go ahead and decrypt the AES key using that RSA-2048 key. <br><br>If no key exists, a RuntimeError is thrown.
+     * The AES-IV is also taken out and reproduced for use.
+     * Once the AES key is decrypted, it is used to decrypt the actual data present.
+     * </p>
+     * @param dataMap <br><br>
+     * <b>AESKey</b>: AES-Key in Base64 format with IV prepended <br><br>
+     * <b>DataB64</b>: Ciphertext in Base64 format
+     * @param uid
+     * @return String
+     */
     public String decryptData(Map<String, String> dataMap, String uid) {
-        System.out.println("In decryptDataAES");
-        /*
-        Check uid for rsa keys
-        if found -> use that to decrypt aes key
-        if not found -> throw error
-        take data and convert from b64 to byte[]
-        decrypt data bytes
-        make into utf8 string
-        return string
-         */
 
         final int TAG_LENGTH_BIT = 128;
         final String algorithm = "AES/GCM/NoPadding";
@@ -137,43 +170,23 @@ public class AesHelpers {
         try {
             String decryptedAesKey = null;
 
-            // Base64helpers helper = new Base64helpers();
-            // byte[] encryptedAesKeyBytesWithIvPrepended = helper.decodeString(encryptedAesKey).getBytes();
             byte[] aeskeyinbytes = Base64.getDecoder().decode(encryptedAesKey);
-            System.out.println("AES KEY IN BYTES = " + aeskeyinbytes);
             String str = new String(aeskeyinbytes, StandardCharsets.UTF_8);
-            System.out.println("AES KEY ENCODED AS STRING = " + str);
-            System.out.println("AES KEY ENCODED AS STRING = " + str);
-            System.out.println("AES KEY ENCODED AS STRING = " + str);
-            System.out.println("DATA ENCODED AS STRING = " + data);
-            System.out.println("AES KEY ENCRYPTED AS STRING = " + encryptedAesKey);
             String base64encodedIV = str.substring(0, 24);
-            System.out.println("IV AS B64 IN BYTES = " + base64encodedIV);
             byte[] iv = Base64.getDecoder().decode(base64encodedIV);
             this.iv = iv;
-
-            
-            // byte[] encryptedAesKeyBytesWithIvPrepended = encryptedAesKey.getBytes();
-            // this.iv = Arrays.copyOfRange(encryptedAesKeyBytesWithIvPrepended, 0, 15);
             
             String b64encodedAESkey = str.substring(24, str.length());
-            System.out.println("ABCDEF = " + b64encodedAESkey);
-            // String b64decryptedRSAencryptedAESkey = new String(Base64.getDecoder().decode(b64encodedAESkey), StandardCharsets.UTF_8);
-            // String b64decryptedRSAencryptedAESkey = new String(Hex.decodeHex(b64encodedAESkey), StandardCharsets.UTF_8);
 
             RsaHelpers rsahelper = new RsaHelpers(databaseName, tableName);
-            // decryptedAesKey = rsahelper.decryptRawDataWithRsa(b64decryptedRSAencryptedAESkey, uid);
             decryptedAesKey = rsahelper.decryptRawDataWithRsa(b64encodedAESkey, uid);
 
             byte[] bytesKey = decryptedAesKey.getBytes();
-            System.out.println("byteskey = " + bytesKey.length);
             String newkey = new String(bytesKey, StandardCharsets.UTF_8);
-            System.out.println("byteskey = " + Hex.decodeHex(newkey).length);
             this.secretKey = new SecretKeySpec(Hex.decodeHex(newkey), 0, Hex.decodeHex(newkey).length, "AES");
 
             Cipher cipher = Cipher.getInstance(algorithm);
             cipher.init(Cipher.DECRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH_BIT, this.iv));
-            // byte[] dataBytes = data.getBytes();
             byte[] dataBytes = Base64.getDecoder().decode(data);
             byte[] decryptedBytes = cipher.doFinal(dataBytes);
 

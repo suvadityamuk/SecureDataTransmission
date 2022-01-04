@@ -8,6 +8,34 @@ import org.apache.commons.codec.binary.Hex;
 
 import java.security.*;
 
+/**
+ * public class DatabaseHelpers()
+ * @author Suvaditya Mukherjee <suvadityamuk@gmail.com>
+ * @version 1.0.0
+ * @param
+ * <p>
+ * <b>Dependencies</b>:
+ *  {@code org.apache.commons.codec.binary.Hex, java.sql.*, java.security.*, java.util.*, java.nio.file.*} 
+ * </p>
+ * <p>
+ * <b>Private Variables</b>:<br>
+ *  1) java.sql.Connection conn <br>
+ *  2) String dbPath <br>
+ * </p>
+ * <p>
+ * <b>Methods available</b>:<br>
+ *  1) private connectToDb()<br>
+ *  2) private closeDbConnection()<br>
+ *  3) public setDatabasePath()<br>
+ *  4) public createNewDatabase()<br>
+ *  5) public createTable()<br>
+ *  6) public insertKeysToDatabase()<br>
+ *  7) public readKeysFromDatabase()<br>
+ *  8) public updateKeysInDatabase()<br>
+ *  9) public deleteKeysFromDatabase()<br>
+ * </p>
+ */
+
 public class DatabaseHelpers {
     
     Connection conn;
@@ -22,11 +50,16 @@ public class DatabaseHelpers {
         this.dbPath = dbPath;
     }
     // Path to DB will look something like "jdbc:sqlite:PATH_TO_DB"
+
+    /**
+     * Establishes a JDBC Connection to the SQLite3 Database
+     * @throws SQLException
+     */
     private void connectToDb() throws SQLException{
         System.out.println("In connectToDb");
         try {
             if (this.dbPath == null) {
-                Exception e = new Exception("dbPath for this instance is not specified.");
+                Exception e = new RuntimeException("dbPath for this instance is not specified.");
                 throw e;
             }
             else if (this.conn != null) {
@@ -47,6 +80,10 @@ public class DatabaseHelpers {
             e.printStackTrace();
         }
     }
+
+    /**
+     * Closes the JDBC Connection, if it is connected at runtime.
+     */
     private void closeDbConnection() {
         System.out.println("In closeDbConnection");
         try {
@@ -65,12 +102,16 @@ public class DatabaseHelpers {
             e.printStackTrace();
         }
     }
+
+    /**
+     * Sets the path for the database to be used in JDBC connection. Acts OS-agnostic (but not tested on that note).
+     * @param databaseName
+     */
     private void setDatabasePath (String databaseName) {
         System.out.println("In setDatabasePath");
         //Setting instance dbName to filepath
         if (this.dbPath == null) {
             String currentWorkingDir = FileSystems.getDefault().getPath("").toAbsolutePath().toString();
-            System.out.println(currentWorkingDir);
             String filePath = String.format("jdbc:sqlite:%s", currentWorkingDir) + String.format("/%s", databaseName) + ".sqlite";
             this.dbPath = filePath;
         }
@@ -80,6 +121,11 @@ public class DatabaseHelpers {
         }
     }
 
+    /**
+     * Creates a new Database (and generates a new .sqlite file due to it) with preset name and parameters.
+     * @param databaseName
+     * @param tableName
+     */
     public void createNewDatabase(String databaseName, String tableName) {
         System.out.println("In createNewDatabase");
         setDatabasePath(databaseName);
@@ -106,6 +152,11 @@ public class DatabaseHelpers {
         }
     }
     
+    /**
+     * Creates a table in the active Database present and connected. 
+     * @param databaseName
+     * @param tableName
+     */
     public void createTable(String databaseName, String tableName) {
         System.out.println("In createTable");
         setDatabasePath(databaseName);
@@ -137,10 +188,18 @@ public class DatabaseHelpers {
         
     }
 
+    /**
+     * Used to insert RSA-2048 keys into Database. Will check if any old keys exist. If they do, the keys will be updated. If no old keys exist against 
+     * that UID, they will be added.
+     * @param databaseName
+     * @param tableName
+     * @param uid
+     * @param rsaPublicKey
+     * @param rsaPrivateKey
+     */
     public void insertKeysToDatabase(String databaseName, String tableName, String uid, PublicKey rsaPublicKey, PrivateKey rsaPrivateKey) {
         System.out.println("In insertKeysToDatabase");
         setDatabasePath(databaseName);
-        System.out.println(this.dbPath);
         String sqlInsertDataStatement = String.format("INSERT INTO %s (uid, rsapublicKey, rsaprivateKey) VALUES (?,?,?)", tableName);
 
         Map<String, byte[]> keysLoaded = readKeysFromDatabase(databaseName, tableName, uid);
@@ -177,16 +236,22 @@ public class DatabaseHelpers {
                 return;
             }
             e.printStackTrace();
-            // closeDbConnection();
         }
         catch (Exception e) {
             System.err.println("Keys were not set.");
             e.printStackTrace();
-            // closeDbConnection();
         }
     }
 
     // WARNING : CAN RETURN NULL VALUES. RETURNS DECODED HEX STRING IN BYTE ARRAY FORMAT
+
+    /**
+     * Query and read RSA-2048 keys from the Database. It keeps a track of both Private and Public keys, so it returns both. Requires UID for internal functions
+     * @param databaseName
+     * @param tableName
+     * @param uid
+     * @return Map &lt String, byte[] &gt
+     */
     public Map<String, byte[]> readKeysFromDatabase(String databaseName, String tableName, String uid) {
         System.out.println("In readKeysFromDatabase");
         setDatabasePath(databaseName);
@@ -196,24 +261,19 @@ public class DatabaseHelpers {
         try {
             connectToDb();
             String queryFromTableStatement = String.format("SELECT uid, rsapublickey, rsaprivatekey FROM %s WHERE uid=?", tableName);
-            System.out.println(queryFromTableStatement);
             PreparedStatement statement = this.conn.prepareStatement(queryFromTableStatement);
             connectToDb();
             statement.setString(1, uid);
             ResultSet resultSet = statement.executeQuery();
             while(resultSet.next()) {
-                // cryptographicRsaKeys.put("PrivateKey", resultSet.getBinaryStream("rsaprivatekey").readAllBytes().toString().getBytes());
-                // cryptographicRsaKeys.put("PublicKey", resultSet.getBinaryStream("rsapublickey").readAllBytes().toString().getBytes());
                 cryptographicRsaKeys.put("PrivateKey", Hex.decodeHex(resultSet.getString("rsaprivatekey")));
                 cryptographicRsaKeys.put("PublicKey", Hex.decodeHex(resultSet.getString("rsapublickey")));
             }
             if((cryptographicRsaKeys.get("PrivateKey") != null) && (cryptographicRsaKeys.get("PublicKey") != null)) {
-                System.out.println(cryptographicRsaKeys.get("PrivateKey"));
-                System.out.println(cryptographicRsaKeys.get("PublicKey"));
                 return cryptographicRsaKeys;
             }
             else {
-                Exception e = new Exception("KeysNotSet");
+                Exception e = new RuntimeException("KeysNotSet");
                 throw e;
             }
         }
@@ -241,6 +301,14 @@ public class DatabaseHelpers {
         return cryptographicRsaKeys;
     }
 
+    /**
+     * Update RSA-2048 keys already present in the database against a specific UID. Throws exception if invoked in wrong context.
+     * @param databaseName
+     * @param tableName
+     * @param uid
+     * @param rsaPublicKey
+     * @param rsaPrivateKey
+     */
     public void updateKeysInDatabase(String databaseName, String tableName, String uid, PublicKey rsaPublicKey, PrivateKey rsaPrivateKey) {
         System.out.println("In updateKeysInDatabase");
         setDatabasePath(databaseName);
@@ -248,7 +316,7 @@ public class DatabaseHelpers {
             connectToDb();
             Map<String, byte[]> keys = readKeysFromDatabase(databaseName, tableName, uid);
             if ((keys.get("PrivateKey") == null) || (keys.get("PublicKey") == null)) {
-                throw new Exception("DataNotFound");
+                throw new RuntimeException("DataNotFound");
             }
             else {
                 String updateStatement = String.format("UPDATE %s SET uid=?, rsapublickey=?, rsaprivatekey=?", tableName); 
@@ -283,6 +351,12 @@ public class DatabaseHelpers {
         }
     }
 
+    /**
+     * Deletes a pair of RSA-2048 keys from Database if present against a specific UID. Throws error if invoked in
+     * @param databaseName
+     * @param tableName
+     * @param uid
+     */
     public void deleteKeysFromDatabase(String databaseName, String tableName, String uid) {
         System.out.println("In deleteKeysFromDatabase");
         setDatabasePath(databaseName);
@@ -290,7 +364,7 @@ public class DatabaseHelpers {
             connectToDb();
             Map<String, byte[]> keys = readKeysFromDatabase(databaseName, tableName, uid);
             if ((keys.get("PrivateKey") == null) || (keys.get("PublicKey") == null)) {
-                throw new Exception("DataNotFound");
+                throw new RuntimeException("DataNotFound");
             }
             else {
                 String deleteStatement = String.format("DELETE FROM %s WHERE uid=?", tableName); 
