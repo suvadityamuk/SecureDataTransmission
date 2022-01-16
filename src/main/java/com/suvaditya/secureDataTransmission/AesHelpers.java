@@ -115,7 +115,9 @@ public class AesHelpers {
             RsaHelpers rsahelper = new RsaHelpers(databaseName, tableName);
             encryptedAesKey = rsahelper.encryptRawDataWithRsa(Hex.encodeHexString(this.secretKey.getEncoded()), uid); // encoding aes key in hex
             String str = Base64.getEncoder().encodeToString(this.iv);
+
             encryptedAesKey = str + encryptedAesKey;
+            
             Cipher cipher = Cipher.getInstance(algorithm);
             cipher.init(Cipher.ENCRYPT_MODE, this.secretKey, new GCMParameterSpec(TAG_LENGTH_BIT, this.iv));
             byte[] dataBytes = data.getBytes();
