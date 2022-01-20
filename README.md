@@ -1,6 +1,6 @@
 # Secure Data Transmission
 
-A simple **client** which allows you to encrypt and decrypt data using **Java's native Cryptographic APIs**. Named as such because I am not good at naming things.
+A simple **library** which allows you to encrypt and decrypt data using **Java's native Cryptographic APIs**. Named as such because I am not good at naming things.
 
 ## Algorithms used
 
